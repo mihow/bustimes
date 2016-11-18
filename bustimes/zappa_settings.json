@@ -4,9 +4,9 @@
         "s3_bucket": "hackoregon-bustimes",
         "keep_warm": false,
 
-		"events": [{
-			"function": "bustimes.save_bus_data", 
-			"expression": "rate(1 minute)"
-		}]
-	}
+        "events": [{
+            "function": "bustimes.save_bus_data", 
+            "expression": "rate(1 minute)"
+        }]
+    }
 }
