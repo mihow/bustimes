@@ -15,7 +15,7 @@ pip install -r requirements.txt
 ## Run locally
 
 ```bash
-python bustimes.py
+./runserver.sh
 # Open a webrowser to http://localhost:5000
 ```
 
