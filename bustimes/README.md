@@ -26,5 +26,8 @@ zappa deploy dev
 zappa schedule dev # Runs save_bus_data at scheduled intervals
 ```
 
+## Sample data
 
+Data I've downloaded so far can be found in our shared Google Drive folder:
+https://drive.google.com/drive/u/0/folders/0B2nKUbgRVu3VUk9hazYwZEtOMkk
 
