@@ -37,7 +37,7 @@ def make_summary(bus_data={}, save=True):
     bus_lines = set([entry['routeNumber'] for entry in bus_data])
 
     if save:
-        url, resp = save_bus_data(bus_data)
+        url, resp = save_bus_data(bus_data=bus_data)
     else:
         url = None
 
@@ -77,14 +77,13 @@ def show_bus_data():
     return jsonify(get_bus_data(), 200)
 
 
-def save_bus_data(bus_data={}):
+def save_bus_data(*args, **kwargs):
     """
     This is a scheduled function, doesn't need an http endpoint
     """
-    if not bus_data:
-        bus_data = get_bus_data()
+    bus_data = kwargs.get('bus_data', get_bus_data())
 
-    filename = 'test_bustimes__{:%Y-%m-%d__%H-%M-%S}.json'.format(
+    filename = 'bustimes__{:%Y-%m-%d__%H-%M-%S}.json'.format(
         datetime.datetime.now())
 
     print("Saving file '{}' to S3 bucket '{}'".format(
@@ -111,10 +110,9 @@ if __name__ == '__main__':
 
     bus_data = get_bus_data()
     summary = make_summary(bus_data)
-    url, resp = save_bus_data()
 
     # Output full data in a way that it can be redirected in the shell
-    sys.stdout.write(json.dumps(bus_data, indent=4))
+    #sys.stdout.write(json.dumps(bus_data, indent=4))
 
     # Print the summary
-    sys.exit(pprint.pformat( url ))
+    sys.exit(pprint.pformat( summary ))
