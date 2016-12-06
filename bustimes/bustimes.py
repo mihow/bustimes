@@ -83,7 +83,7 @@ def save_bus_data(*args, **kwargs):
     """
     bus_data = kwargs.get('bus_data', get_bus_data())
 
-    filename = 'bustimes__{:%Y-%m-%d__%H-%M-%S}.json'.format(
+    filename = 'raw/bustimes__{:%Y-%m-%d__%H-%M-%S}.json'.format(
         datetime.datetime.now())
 
     print("Saving file '{}' to S3 bucket '{}'".format(
