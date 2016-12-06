@@ -3,6 +3,7 @@
         "app_function": "bustimes.app",
         "s3_bucket": "hackoregon-bustimes",
         "keep_warm": false,
+        "memory_size": 128,
 
         "events": [{
             "function": "bustimes.save_bus_data", 
