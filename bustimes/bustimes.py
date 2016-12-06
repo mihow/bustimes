@@ -5,12 +5,15 @@ import pprint
 import urllib
 import datetime
 
+import boto3
 from flask import Flask, jsonify, url_for, redirect
 
 app = Flask(__name__)
 
 TRIMET_APP_ID = '754D006A41E6C467A520737CA'
+S3_BUCKET_NAME = 'bustimes-data'
 
+s3 = boto3.client('s3')
 
 
 def get_bus_data():
@@ -22,7 +25,7 @@ def get_bus_data():
 
     return bus_info
 
-def make_summary(bus_data):
+def make_summary(bus_data={}, save=True):
     request_time = datetime.datetime.now()
 
     if not bus_data:
@@ -32,6 +35,11 @@ def make_summary(bus_data):
     times = [entry['time'] for entry in bus_data]
     avg_delay = sum([entry['delay'] for entry in bus_data if entry['delay']]) / float(len(bus_data))
     bus_lines = set([entry['routeNumber'] for entry in bus_data])
+
+    if save:
+        url, resp = save_bus_data(bus_data)
+    else:
+        url = None
 
     def timestamp_to_dt(t):
         # Convert "miliseconds since the epoch" to a datetime object
@@ -44,6 +52,7 @@ def make_summary(bus_data):
             "time_reported_max": timestamp_to_dt(max(times)), 
             "time_reported_min": timestamp_to_dt(min(times)), 
             "time_request_made": request_time,
+            "data": url,
     }
 
     return summary
@@ -68,21 +77,44 @@ def show_bus_data():
     return jsonify(get_bus_data(), 200)
 
 
-def save_bus_data_to_db():
+def save_bus_data(bus_data={}):
     """
-    @TODO Save the raw results to a database!
-    # This is a scheduled function, doesn't need an http endpoint
+    This is a scheduled function, doesn't need an http endpoint
     """
-    raise NotImplementedError
+    if not bus_data:
+        bus_data = get_bus_data()
+
+    filename = 'test_bustimes__{:%Y-%m-%d__%H-%M-%S}.json'.format(
+        datetime.datetime.now())
+
+    print("Saving file '{}' to S3 bucket '{}'".format(
+        filename, S3_BUCKET_NAME))
+
+    resp = s3.put_object(
+            ACL='public-read',
+            Bucket=S3_BUCKET_NAME,
+            Key=filename, 
+            Body=bytes(bus_data),
+            ContentType='application/json')
+
+    if not resp['ResponseMetadata']['HTTPStatusCode'] == 200:
+        raise Exception("Error saving obj to S3")
+    
+    # And return the URL
+    object_url = "https://{0}.s3.amazonaws.com/{1}".format(
+        S3_BUCKET_NAME, filename)
+
+    return object_url, resp
 
 
 if __name__ == '__main__':
 
     bus_data = get_bus_data()
     summary = make_summary(bus_data)
+    url, resp = save_bus_data()
 
     # Output full data in a way that it can be redirected in the shell
     sys.stdout.write(json.dumps(bus_data, indent=4))
 
     # Print the summary
-    sys.exit(pprint.pformat( summary ))
+    sys.exit(pprint.pformat( url ))
