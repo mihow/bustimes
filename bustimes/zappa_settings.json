@@ -4,6 +4,7 @@
         "s3_bucket": "hackoregon-bustimes",
         "keep_warm": false,
         "memory_size": 128,
+        "log_level": "WARN",
 
         "events": [{
             "function": "bustimes.save_bus_data", 
