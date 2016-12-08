@@ -1,3 +1,4 @@
+import os
 import requests
 import hmac
 import hashlib
@@ -135,7 +136,23 @@ def exportcsv_onetime(year, month, day, hour, minute):
     return exportcsv(time, time+(60*60*24))
 
 
-def routes_for_day(route_number, date):
+def add_timestamps(data):
+    key = 'event_timestamp'
+    for i, entry in enumerate(data):
+        data[i]['event_day'] = datetime.fromtimestamp(entry[key]).strftime(
+                '%Y-%m-%d')
+        data[i]['event_timestamp_str'] = str(
+                datetime.fromtimestamp(entry[key]))
+    return data
+
+
+def add_situation(data, situation):
+    for i, entry in enumerate(data):
+        data[i]['situation'] = situation
+    return data
+
+
+def routes_for_day(route_number, first_stop, last_stop, date, save=True):
     
     # route_number = 19
     # first_stop = 1545
@@ -152,29 +169,36 @@ def routes_for_day(route_number, date):
     
     end_time = start_time + (60*60*24)
 
-    filters = make_filters(
-        route_number = route_number,)
+    situations = {
+        'first_stop_approaching': make_filters(route_number, next_stop=first_stop),
+        'first_top_leaving': make_filters(route_number, previous_stop=first_stop),
 
-    resp = exportcsv(start_time, end_time, filters)
-    return resp
+        'last_stop_approaching': make_filters(route_number, next_stop=last_stop),
+        'last_stop_leaving': make_filters(route_number, previous_stop=last_stop),
+    }
 
-def convert_timestamps(data=[]):
-    key = 'event_timestamp'
-    for i, entry in enumerate(data):
-        data[i]['event_timestamp_str'] = str(
-                datetime.fromtimestamp(entry[key]))
+    for situation, filters in situations.items():
+        resp = exportcsv(start_time, end_time, filters)
+        resp.raise_for_status()
+        data = resp.json()['data']['data']
+        log.info("* Got {} datapoints for situation '{}'".format(
+            len(data), situation))
+        data = add_timestamps(data)
+        data = add_situation(data, situation)
+
+        if save:
+            dirname = 'data'
+            if not os.path.exists(dirname):
+                os.makedirs(dirname)
+            fname = '{}/bus_{}_{:%Y-%m-%d}_{}to{}_{}.json'.format(
+                    dirname, route_number, start_date, first_stop, last_stop, situation)
+            log.info("* Writing file '{}'".format(fname))
+            json.dump(data, open(fname, 'w'), indent=2)
+
     return data
 
-def convert_timestamps(data=[]):
-    key = 'event_timestamp'
-    for i, entry in enumerate(data):
-        data[i]['event_day'] = datetime.fromtimestamp(entry[key]).strftime(
-                '%Y-%m-%d')
-        data[i]['event_timestamp_str'] = str(
-                datetime.fromtimestamp(entry[key]))
-    return data
 
-def routes_since_august(route_number, debug=False, writefile=False):
+def routes_since_august(route_number, first_stop, last_stop, debug=False):
 
     # Beginning of first day available 
     start_date = datetime(2016, 8, 18, 0, 0)
@@ -188,42 +212,24 @@ def routes_since_august(route_number, debug=False, writefile=False):
         end_date = start_date + timedelta(days=3) 
 
     num_days = (end_date - start_date).days
-    all_routes = []
     date = start_date
 
     for n in range(num_days):
         log.info("Getting bus 19 routes for {} (until midnight)".format(date))
-        resp = routes_for_day(route_number, date)
-        resp.raise_for_status()
-        data = resp.json()['data']['data']
-        log.info("Got {} data points ({} total, day {}/{})".format(
-            len(data), len(all_routes) + len(data), n, num_days))
-        data = convert_timestamps(data)
-        all_routes += data
-
-        if writefile:
-            # Overrides file every time
-            fname = 'bus_routes_{:%Y-%m-%d}_{:%Y-%m-%d}.json'.format(start_date, end_date)
-            outfile = open(fname, 'w')
-            json.dump(all_routes, outfile, indent=2)
+        data = routes_for_day(route_number, first_stop, last_stop, date)
+        log.info("Got {} data points, day {}/{})".format(
+            len(data), n, num_days))
 
         # sys.stdout.write( json.dumps(data, indent=2) )
         date += timedelta(days=1)
 
-    log.info("Collected a total of {} data points over {} days".format(
-        len(all_routes), num_days))
-
-    return all_routes
-
-        
-
+    log.info("Done")
 
 
 if __name__ == "__main__":
     import pprint
 
-    data = routes_since_august(19, debug=False, writefile=True)
-    sys.stdout.write(json.dumps(data, indent=2))
+    routes_since_august(19, 1545, 792, debug=True)
 
     #start_date = datetime.strptime(sys.argv[1], "%m/%d/%y")
     # resp = routes_for_day(start_date)
