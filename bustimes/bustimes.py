@@ -140,12 +140,12 @@ def save_to_db(bus_data):
         len(bus_data), DYNAMODB_TABLE_NAME))
 
     with db.batch_writer() as batch:
-	for item in bus_data:
+        for item in bus_data:
 
-	    item = _make_id(item)
-	    item = _replace_floats(item)
+            item = _make_id(item)
+            item = _replace_floats(item)
 
-	    db.put_item( Item=item )
+            db.put_item( Item=item )
 
     return True
 
@@ -156,9 +156,10 @@ def save_bus_data(*args, **kwargs):
     """
     bus_data = kwargs.get('bus_data', get_bus_data())
 
-    save_to_db(bus_data)
+    url, resp = save_to_s3(bus_data)
+    # save_to_db(bus_data)
 
-    return save_to_s3(bus_data)
+    return url, resp 
 
 
 
