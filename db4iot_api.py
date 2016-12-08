@@ -55,7 +55,7 @@ def exportcsv(begin, end, filters = {"logical": "and", "conditions": []}):
     datasource_id = "ef424fcd-fd76-40eb-8d13-5a05f81391a9"
     content = json.dumps({
                   "data": {
-			  "method": "export_csv",
+			  "method": "export_json",
 			  #"internal_compression": "none",
 			  "datasource_id": datasource_id,
 			  "columns": columns,
@@ -76,5 +76,16 @@ def exportcsv_onetime(month, day, hour, minute):
     return exportcsv(time, time+10)
 
 if __name__ == "__main__":
-    print(exportcsv_onetime(9, 1, 8, 0).text)
-    
+    import sys
+    import pprint
+
+    if len(sys.argv) == 5:
+        month, day, hour, minute = [int(arg) for arg in sys.argv[1:5]]
+    else:
+        now = datetime.now()
+        print("Date is set for today / right now: {}".format(now))
+        month, day, hour, minute = now.month, now.day, now.hour, now.minute
+
+    resp = exportcsv_onetime(month, day, hour, minute)
+    data = resp.json()
+    pprint.pprint(data, indent=2)
