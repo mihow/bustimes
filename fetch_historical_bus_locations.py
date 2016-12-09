@@ -218,7 +218,7 @@ def routes_since_august(route_number, first_stop, last_stop, debug=False):
         log.info("Getting bus 19 routes for {} (until midnight)".format(date))
         data = routes_for_day(route_number, first_stop, last_stop, date)
         log.info("Got {} data points, day {}/{})".format(
-            len(data), n, num_days))
+            len(data), n+1, num_days))
 
         # sys.stdout.write( json.dumps(data, indent=2) )
         date += timedelta(days=1)
@@ -229,7 +229,7 @@ def routes_since_august(route_number, first_stop, last_stop, debug=False):
 if __name__ == "__main__":
     import pprint
 
-    routes_since_august(19, 1545, 792, debug=True)
+    routes_since_august(19, 1545, 792, debug=False)
 
     #start_date = datetime.strptime(sys.argv[1], "%m/%d/%y")
     # resp = routes_for_day(start_date)
