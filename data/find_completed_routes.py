@@ -13,9 +13,15 @@ df = pd.read_json('bus_19_history.json')
 def get_weekday(t):
     return dt.datetime.fromtimestamp(t).strftime('%A')
 
+def get_hour_of_day(t):
+    return int(dt.datetime.fromtimestamp(t).strftime('%H'))
+
+def get_timestamp_str(t):
+    return str(dt.datetime.fromtimestamp(t))
+
 df['weekday'] = df.event_timestamp.apply(get_weekday)
 
-monday_trips = df[df.weekday == 'Monday']
+# monday_trips = df[df.weekday == 'Monday']
 
 # vehicles = df.pivot_table(index=['vehicle_id'], values=['situation'], aggfunc=lambda x: len(x.unique())).sort_values(by='situation')
 
@@ -29,34 +35,59 @@ leavings_simple = leavings[['vehicle_id', 'event_timestamp', 'situation']]
 # Group by vehicle ID so our timeseries data makes sense
 vehicles = leavings_simple.groupby('vehicle_id')
 
-# @TODO for later
-# for k, v in vehicles:
-#     print(len(v))
-
 # Sample group of data points for a single vehicle
-k, v = list(vehicles)[2]
+# k, v = list(vehicles)[2]
+# k # vehicle_id
+# v # dataframe
 
-k # vehicle_id
-v # dataframe
 
-v = v.sort_values('event_timestamp')
+all_routes_dataframes = []
 
-# Save only the rows where the situation/state changed (approaching => leaving)
-state_changes = (v != v.shift(1)).situation
-routes = v.loc[state_changes]
+# @TODO for later
+for k, v in vehicles:
 
-# Time between leaving first stop and leaving last stop
-diffs = ((routes.event_timestamp - routes.shift(1).event_timestamp) / 60)
+    v = v.sort_values('event_timestamp')
 
-routes_with_length = routes.copy()
-routes_with_length['length'] = diffs
+    # Save only the rows where the situation/state changed (approaching => leaving)
+    state_changes = (v != v.shift(1)).situation
+    v_routes = v.loc[state_changes].copy()
 
-routes_with_length[routes_with_length.situation.str.contains('last')]
+    # Time between leaving first stop and leaving last stop
+    diffs = ((v_routes.event_timestamp - v_routes.shift(1).event_timestamp) / 60)
 
-completed_routes = routes_with_length[routes_with_length.situation.str.contains('last')]
+    v_routes['duration'] = diffs
 
-print("Sample for vehicle #{}".format(k))
-print(completed_routes)
+    v_routes[v_routes.situation.str.contains('last')]
+
+    completed_routes = v_routes[v_routes.situation.str.contains('last')]
+
+    # print("Sample for vehicle #{}".format(k))
+    # print(completed_routes)
+
+    all_routes_dataframes.append(completed_routes)
+
+routes = pd.concat(all_routes_dataframes)
+
+# Drop rows with NA durations
+routes = routes.dropna()
+
+# Drop outliers
+# about 50 out of 4000 are over 120 minutes, @TODO look more into these later
+routes = routes[routes.duration < 100]
+
+# Add new columns
+routes['timestamp_str'] = routes.event_timestamp.apply(get_timestamp_str)
+routes['weekday'] = routes.event_timestamp.apply(get_weekday)
+routes['hour'] = routes.event_timestamp.apply(get_hour_of_day)
+
+# Sort
+routes = routes.sort_values('event_timestamp')
+
+print(routes.duration.describe())
+print()
+print(routes.pivot_table(index=['weekday', 'hour'], values='duration', aggfunc='mean'))
+
+# import ipdb; ipdb.set_trace()
 
 # Final dataframe columns should look something like this:
 # 
