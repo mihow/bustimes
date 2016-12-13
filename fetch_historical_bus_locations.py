@@ -263,14 +263,24 @@ def routes_since_august(route_number, first_stop, last_stop, debug=False, save=T
 if __name__ == "__main__":
     import pprint
 
-    # Bus 19 from SE 72nd & Duke to downtown 5th & Burnside
-    routes_since_august(19, 1545, 792, debug=True)
 
-    # Bus 19 from downtown 5th & Burnside to SE 72nd & Duke
-    routes_since_august(19, 792, 1545, debug=True)
+    # Bus 4 from SE 60th & Division to SW 6th & West Burnside 
+    routes_since_august(4, 1478, 7751, debug=False)
+    # trimet says 30 min (~1pm Tuesday)
 
-    # # Bus 4 from downtown 6th & Burnside to SE 60th & Lincoln
-    # routes_since_august(4, 1545, 792, debug=True)
+    # # Bus 4 from SW 5th & Pine to SE 60th & Division
+    # routes_since_august(4, 7631, 1477, debug=True)
+    # # trimet says 30 min (~1pm Tuesday)
+    # zero results?
+
+    # Bus 19 from SE 72nd & Duke to SW 6th & Burnside
+    routes_since_august(19, 1545, 792, debug=False)
+    # trimet says 43 min (~1pm Tuesday)
+
+    # # Bus 19 from SW 5th & Pine to SE 72nd & Duke 
+    # routes_since_august(19, 7631, 1544, debug=True)
+    # # trimet says 48 min (~1pm Tuesday)
+    # zero results?
 
     #start_date = datetime.strptime(sys.argv[1], "%m/%d/%y")
     # resp = routes_for_day(start_date)
