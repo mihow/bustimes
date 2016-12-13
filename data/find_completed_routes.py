@@ -157,7 +157,8 @@ def stats_for_vehicle_groups(df):
     return completed_routes
 
 # routes = pd.concat(all_routes_dataframes)
-routes = leavings.groupby('vehicle_id').apply(stats_for_vehicle_groups)
+routes = leavings.groupby('vehicle_id', group_keys=False).apply(stats_for_vehicle_groups)
+# unstack()?
 
 # Drop rows with NA durations
 routes = routes.dropna()
