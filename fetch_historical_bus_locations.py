@@ -151,6 +151,14 @@ def add_situation(data, situation):
         data[i]['situation'] = situation
     return data
 
+
+def add_route_info(data, first_stop, last_stop):
+    for i, entry in enumerate(data):
+        data[i]['first_stop'] = first_stop
+        data[i]['last_stop'] = last_stop
+    return data
+
+
 BUS_DATA_DIR = 'data/bus{}_trip{}to{}'
 
 def routes_for_day(route_number, first_stop, last_stop, date, save=True):
@@ -186,6 +194,7 @@ def routes_for_day(route_number, first_stop, last_stop, date, save=True):
             len(data), situation))
         data = add_timestamps(data)
         data = add_situation(data, situation)
+        data = add_route_info(data, first_stop, last_stop)
 
         if save:
             dirname = os.path.join(
