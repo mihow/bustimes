@@ -83,7 +83,8 @@ leavings = df[df.situation.str.contains('leaving')]
 # leavings_simple = leavings[['vehicle_id', 'event_timestamp', 'situation']]
 
 # Group by vehicle ID so our timeseries data makes sense
-vehicles = leavings.groupby('vehicle_id')
+
+# vehicles = leavings.groupby('vehicle_id')
 
 # Sample group of data points for a single vehicle
 # k, v = list(vehicles)[2]
@@ -91,17 +92,18 @@ vehicles = leavings.groupby('vehicle_id')
 # v # dataframe
 
 
-all_routes_dataframes = []
-all_blocks = set()
+# all_routes_dataframes = []
+# all_blocks = set()
+# 
+# # @TODO for later
+# for k, v in vehicles:
 
-# @TODO for later
-for k, v in vehicles:
-
-    v = v.sort_values('event_timestamp')
+def stats_for_vehicle_groups(df):
+    df = df.sort_values('event_timestamp')
 
     # Save only the rows where the situation/state changed (approaching => leaving)
-    state_changes = (v != v.shift(1)).situation
-    vroutes = v.loc[state_changes].copy()
+    state_changes = (df != df.shift(1)).situation
+    vroutes = df.loc[state_changes].copy()
 
     previous_rows = vroutes.shift(1)
 
@@ -123,8 +125,6 @@ for k, v in vehicles:
     vroutes['lat_end'] = vroutes.vehicle_location_latitude
     vroutes['lon_end'] = vroutes.vehicle_location_longitude
     vroutes['distance'] = vroutes.apply(get_distance, axis=1)
-
-    all_blocks.update(vroutes.blockID.unique())
 
     # Only keep the "ending" data points for each trip
     completed_routes = vroutes[vroutes.situation.str.contains('last')]
@@ -153,9 +153,11 @@ for k, v in vehicles:
     # print("Sample for vehicle #{}".format(k))
     # print(completed_routes)
 
-    all_routes_dataframes.append(completed_routes)
+    # all_routes_dataframes.append(completed_routes)
+    return completed_routes
 
-routes = pd.concat(all_routes_dataframes)
+# routes = pd.concat(all_routes_dataframes)
+routes = leavings.groupby('vehicle_id').apply(stats_for_vehicle_groups)
 
 # Drop rows with NA durations
 routes = routes.dropna()
