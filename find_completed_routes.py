@@ -142,6 +142,8 @@ def main(df, save=True):
                 'delay', # at last stop observation
                 'trip_start',
                 'trip_end',
+                'delay_start',
+                'delay_end',
                 'block_start',
                 'block_end',
                 'vehicle_id',
