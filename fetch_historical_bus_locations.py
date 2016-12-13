@@ -151,6 +151,7 @@ def add_situation(data, situation):
         data[i]['situation'] = situation
     return data
 
+BUS_DATA_DIR = 'data/bus{}_trip{}to{}'
 
 def routes_for_day(route_number, first_stop, last_stop, date, save=True):
     
@@ -187,7 +188,9 @@ def routes_for_day(route_number, first_stop, last_stop, date, save=True):
         data = add_situation(data, situation)
 
         if save:
-            dirname = 'data'
+            dirname = os.path.join(
+                BUS_DATA_DIR.format(route_number, first_stop, last_stop),
+                'daily')
             if not os.path.exists(dirname):
                 os.makedirs(dirname)
             fname = '{}/bus_{}_{:%Y-%m-%d}_{}to{}_{}.json'.format(
@@ -198,7 +201,7 @@ def routes_for_day(route_number, first_stop, last_stop, date, save=True):
     return data
 
 
-def routes_since_august(route_number, first_stop, last_stop, debug=False):
+def routes_since_august(route_number, first_stop, last_stop, debug=False, save=True):
 
     # Beginning of first day available 
     start_date = datetime(2016, 8, 18, 0, 0)
@@ -216,7 +219,7 @@ def routes_since_august(route_number, first_stop, last_stop, debug=False):
 
     for n in range(num_days):
         log.info("Getting bus 19 routes for {} (until midnight)".format(date))
-        data = routes_for_day(route_number, first_stop, last_stop, date)
+        data = routes_for_day(route_number, first_stop, last_stop, date, save=save)
         log.info("Got {} data points, day {}/{})".format(
             len(data), n+1, num_days))
 
@@ -225,11 +228,49 @@ def routes_since_august(route_number, first_stop, last_stop, debug=False):
 
     log.info("Done")
 
+    if save:
+        dirname = BUS_DATA_DIR.format(route_number, first_stop, last_stop)
+
+        daily_dir = os.path.join(dirname, 'daily')
+        combined_dir = os.path.join(dirname, 'combined')
+        if not os.path.exists(combined_dir):
+            os.makedirs(combined_dir)
+
+        dailies = [f for f in os.listdir(daily_dir) if f.lower().endswith('.json')]
+
+        fname = 'bus{}_trip{}to{}.json'.format(
+                route_number, first_stop, last_stop)
+
+        fpath = os.path.join(combined_dir, fname)
+
+        log.info("* Combining {} json files...".format(len(dailies)))
+
+        all_data = []
+        for daily in dailies:
+            log.debug("Combining '{}'".format(daily))
+            all_data += json.load(open(os.path.join(daily_dir, daily), 'r'))
+
+        log.debug("* Writing file '{}'".format(fpath))
+        json.dump(all_data, open(fpath, 'w'))
+
+        # Add the total num data points to the filename
+        new_fpath = fpath.replace('.json', '_len{}.json'.format(len(all_data)))
+        log.info("* Writing file '{}'".format(new_fpath))
+        os.rename(fpath, new_fpath)
+
+
 
 if __name__ == "__main__":
     import pprint
 
-    routes_since_august(19, 1545, 792, debug=False)
+    # Bus 19 from SE 72nd & Duke to downtown 5th & Burnside
+    routes_since_august(19, 1545, 792, debug=True)
+
+    # Bus 19 from downtown 5th & Burnside to SE 72nd & Duke
+    routes_since_august(19, 792, 1545, debug=True)
+
+    # # Bus 4 from downtown 6th & Burnside to SE 60th & Lincoln
+    # routes_since_august(4, 1545, 792, debug=True)
 
     #start_date = datetime.strptime(sys.argv[1], "%m/%d/%y")
     # resp = routes_for_day(start_date)
