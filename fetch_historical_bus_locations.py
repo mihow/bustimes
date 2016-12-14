@@ -180,7 +180,7 @@ def routes_for_day(route_number, first_stop, last_stop, date, save=True):
 
     situations = {
         'first_stop_approaching': make_filters(route_number, next_stop=first_stop),
-        'first_top_leaving': make_filters(route_number, previous_stop=first_stop),
+        'first_stop_leaving': make_filters(route_number, previous_stop=first_stop),
 
         'last_stop_approaching': make_filters(route_number, next_stop=last_stop),
         'last_stop_leaving': make_filters(route_number, previous_stop=last_stop),
