@@ -80,7 +80,7 @@ def main(df, save=True):
 
 
     # Get only data points right after the bus leaves a stop (first or last stop)
-    leavings = df[df.situation.str.contains('leaving')]
+    leavings = df[df.situation.str.contains('leavings')]
 
     # Work with a subset of columns
     # leavings_simple = leavings[['vehicle_id', 'event_timestamp', 'situation']]
@@ -144,6 +144,8 @@ def main(df, save=True):
                 'trip_end',
                 'delay_start',
                 'delay_end',
+                'first_stop',
+                'last_stop',
                 'block_start',
                 'block_end',
                 'vehicle_id',
