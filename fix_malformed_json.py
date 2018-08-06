@@ -35,7 +35,7 @@ if __name__ == '__main__':
     if input_file_or_url.startswith('http'):
         data = urllib.request.urlopen(input_file_or_url).read().decode('utf-8')
     else:
-        data = open(input_file, 'r').read()
+        data = open(input_file_or_url, 'r').read()
 
     print("Reading data len {}".format(len(data)))
     data_json = fix_json(data)
