@@ -113,12 +113,12 @@ def update_bus_positions(bus_route):
 
     def get_position_index(time, start, end):
         """
-        Get the index of bus' position relative to the first and last
-        positions in the current set of data. Return value between 0 and 1.
+        Index of bus' position relative to first and last pos in current data.
+
+        Returns value between 0 and 1.
         Used as opacity value for markers on map, bus path appears as a snake
         from light to dark.
         """
-
         # Value between 0 and 1
         pos = (time - start) / (end - start)
         return pos
