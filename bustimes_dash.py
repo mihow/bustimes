@@ -52,6 +52,13 @@ def make_summary(bus_data):
 
 app.layout = html.Div([
 
+    dcc.Dropdown(
+        id='bus_routes',
+        options=bus_route_choices(),
+        placeholder='Select a bus route',
+        # multi=True,
+    ),
+
     dcc.Graph(
         id='bus_positions',
         figure={
@@ -60,15 +67,8 @@ app.layout = html.Div([
             ],
         },
         style={
-            'height': '900px',
+            'height': '800px',
         },
-    ),
-
-    dcc.Dropdown(
-        id='bus_routes',
-        options=bus_route_choices(),
-        placeholder='Select a bus route',
-        # multi=True,
     ),
 
     html.Ul(id='summary'),
@@ -135,7 +135,8 @@ def update_bus_positions(bus_route):
                 'marker': {
                     'opacity': list(route['time'].apply(
                         get_position_index,
-                        args=[start, end]) + 0.3)
+                        args=[start, end]) + 0.3),
+                    'size': 12,
                 },
                 'text': list(route.apply(hover_text, axis=1)),
                 'name': vehicle,
