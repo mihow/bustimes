@@ -11,6 +11,7 @@ import pandas as pd
 app = dash.Dash()
 
 data = pd.read_json('data/bustimes_sample.json')
+print("Loaded bus data with {} rows.".format(len(data)))
 
 mapbox_token = os.environ.get('MAPBOX_ACCESS_TOKEN')
 
@@ -28,9 +29,9 @@ def timestamp_to_dt(t, format=False):
 # Prep data
 data['timestamp'] = data['time'].apply(
                         timestamp_to_dt).apply(datetime.datetime.timestamp)
-times = [timestamp_to_dt(time) for time in data['time']]
-min_time = min(times)
-max_time = max(times)
+all_times = [timestamp_to_dt(time) for time in data['time']]
+min_time = min(all_times)
+max_time = max(all_times)
 delta_time = (max_time - min_time)/32
 med_time = min_time + (max_time - min_time)/2
 
@@ -44,18 +45,23 @@ def bus_route_choices():
 
 def make_summary(bus_data):
     """Create summary of useful info about current dataset."""
-    buses = bus_data['vehicleID'].unique()
-    times = bus_data['time']
-    avg_delay = bus_data['delay'].sum() / len(bus_data)
-    bus_lines = list(bus_data['routeNumber'].unique())
+    if not bus_data.empty:
+        buses = bus_data['vehicleID'].unique()
+        route_times = bus_data['time']
+        avg_delay = bus_data['delay'].sum() / len(bus_data)
+        bus_lines = list(bus_data['routeNumber'].unique())
 
-    summary = {
-        "num_vehicles_reporting": len(buses),
-        "num_bus_lines_reporting": len(bus_lines),
-        "avg_delay_minutes": round(avg_delay/60.0, 1),
-        "time_reported_max": timestamp_to_dt(max(times)).strftime(date_fmt),
-        "time_reported_min": timestamp_to_dt(min(times)).strftime(date_fmt),
-    }
+        summary = {
+            "num_vehicles_reporting": len(buses),
+            "num_bus_lines_reporting": len(bus_lines),
+            "avg_delay_minutes": round(avg_delay/60.0, 1),
+            "time_reported_max": timestamp_to_dt(
+                max(route_times)).strftime(date_fmt),
+            "time_reported_min": timestamp_to_dt(
+                min(route_times)).strftime(date_fmt),
+        }
+    else:
+        summary = {}
 
     return summary
 
@@ -135,7 +141,7 @@ def query_data(bus_route, date_range):
 )
 def update_summary(bus_route, date_range):
     """Update summary on page when bus route selector changes."""
-    if bus_route:
+    if bus_route and date_range:
         route_data = query_data(bus_route, date_range)
         summary = make_summary(route_data)
 
@@ -154,10 +160,6 @@ def update_summary(bus_route, date_range):
 )
 def update_bus_positions(bus_route, date_range):
     """Update map of bus locations when bus route selector changes."""
-    route_data = query_data(bus_route, date_range)
-    description = ", ".join([
-        msg for msg in route_data.signMessage.unique() if msg])
-
     def hover_text(row):
         """Text to display when hovering over a single bus location."""
         date = timestamp_to_dt(row['time']).strftime(date_fmt)
@@ -177,7 +179,9 @@ def update_bus_positions(bus_route, date_range):
         pos = (time - start) / (end - start)
         return pos
 
-    if bus_route:
+    if bus_route and date_range:
+        route_data = query_data(bus_route, date_range)
+
         chart_data = []
         for vehicle, route in route_data.groupby('vehicleID'):
             start = route['time'].min()
@@ -212,7 +216,6 @@ def update_bus_positions(bus_route, date_range):
                         'lon': route_data['longitude'].median()
                     },
                 },
-                'title': description,
             },
         }
         return figure
