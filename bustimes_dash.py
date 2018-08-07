@@ -25,6 +25,16 @@ def timestamp_to_dt(t, format=False):
     return dt
 
 
+# Prep data
+data['timestamp'] = data['time'].apply(
+                        timestamp_to_dt).apply(datetime.datetime.timestamp)
+times = [timestamp_to_dt(time) for time in data['time']]
+min_time = min(times)
+max_time = max(times)
+delta_time = (max_time - min_time)/32
+med_time = min_time + (max_time - min_time)/2
+
+
 def bus_route_choices():
     """Create a dict of choices for the bus route selection dropdown."""
     routes = sorted([r for r in list(data['signMessageLong'].unique()) if r])
@@ -56,6 +66,7 @@ app.layout = html.Div([
         id='bus_routes',
         options=bus_route_choices(),
         placeholder='Select a bus route',
+        value=bus_route_choices()[0]['value'],
         # multi=True,
     ),
 
@@ -73,17 +84,59 @@ app.layout = html.Div([
 
     html.Ul(id='summary'),
 
+    html.P([
+        dcc.RangeSlider(
+            id='date-range-selector',
+            min=min_time.timestamp(),
+            max=max_time.timestamp(),
+            value=[
+                (med_time-delta_time).timestamp(),
+                (med_time+delta_time).timestamp()],
+            marks={
+                str(min_time.timestamp()): min_time.strftime(date_fmt),
+                str(max_time.timestamp()): max_time.strftime(date_fmt),
+            },
+            allowCross=False,
+        ),
+
+        html.Div(id='selected-date'),
+    ], style={'margin': '0 10%', 'textAlign': 'center'}),
+
 ])
 
 
 @app.callback(
-    Output('summary', 'children'),
-    [Input('bus_routes', 'value')],
+    Output('selected-date', 'children'),
+    [Input('date-range-selector', 'value')],
 )
-def update_summary(bus_route):
+def update_selected_date(slider_values):
+    """Show selected start & end dates from slider."""
+    if slider_values and len(slider_values) == 2:
+        start, end = [datetime.datetime.fromtimestamp(v).strftime(date_fmt)
+                      for v in slider_values]
+        return "{} to {}".format(start, end)
+    else:
+        return ""
+
+
+def query_data(bus_route, date_range):
+    """Select subset of bus data."""
+    route_data = data[data['signMessageLong'] == bus_route]
+    after = route_data.timestamp > date_range[0]
+    before = route_data.timestamp < date_range[1]
+    route_data = route_data[after & before]
+    return route_data
+
+
+@app.callback(
+    Output('summary', 'children'),
+    [Input('bus_routes', 'value'),
+     Input('date-range-selector', 'value')],
+)
+def update_summary(bus_route, date_range):
     """Update summary on page when bus route selector changes."""
     if bus_route:
-        route_data = data[data['signMessageLong'] == bus_route]
+        route_data = query_data(bus_route, date_range)
         summary = make_summary(route_data)
 
         list_items = [
@@ -96,11 +149,12 @@ def update_summary(bus_route):
 
 @app.callback(
     Output('bus_positions', 'figure'),
-    [Input('bus_routes', 'value')],
+    [Input('bus_routes', 'value'),
+     Input('date-range-selector', 'value')],
 )
-def update_bus_positions(bus_route):
+def update_bus_positions(bus_route, date_range):
     """Update map of bus locations when bus route selector changes."""
-    route_data = data[data['signMessageLong'] == bus_route]
+    route_data = query_data(bus_route, date_range)
     description = ", ".join([
         msg for msg in route_data.signMessage.unique() if msg])
 
