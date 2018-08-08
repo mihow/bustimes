@@ -10,35 +10,35 @@ parser = argparse.ArgumentParser()
 parser.add_argument("path_to_bus_trip_json_data")
 
 # df.pivot_table(index=['tripID'], values=['event_day'], aggfunc='count').sort_values(by='event_day')
-#
+# 
 # df[df.vehicle_id==3149]
-#
+# 
 
 
 def get_datetime(t):
-    return dt.datetime.fromtimestamp(t/1000)
+    return dt.datetime.fromtimestamp(t)
 
-def get_weekday(t):
-    if not isinstance(t, dt.datetime):
-        t = get_datetime(t)
-    return t.strftime('%A')
-
-def get_hour_of_day(t):
-    if not isinstance(t, dt.datetime):
-        t = get_datetime(t)
-    return int(t.strftime('%H'))
-
-def get_timestamp_str(t):
-    if not isinstance(t, dt.datetime):
-        t = get_datetime(t)
-    return str(t)
+# def get_weekday(t):
+#     if not isinstance(t, dt.datetime):
+#         t = get_datetime(t)
+#     return t.strftime('%A')
+# 
+# def get_hour_of_day(t):
+#     if not isinstance(t, dt.datetime):
+#         t = get_datetime(t)
+#     return int(t.strftime('%H'))
+# 
+# def get_timestamp_str(t):
+#     if not isinstance(t, dt.datetime):
+#         t = get_datetime(t)
+#     return str(t)
 
 def haversine_distance(lat1, lon1, lat2, lon2):
     """
     Calculate the great circle distance between two points
     on the earth (specified in decimal degrees)
 
-    All args must be of equal length.
+    All args must be of equal length.    
 
     """
     lon1, lat1, lon2, lat2 = map(np.radians, [lon1, lat1, lon2, lat2])
@@ -54,7 +54,7 @@ def haversine_distance(lat1, lon1, lat2, lon2):
     return miles
 
 def get_distance(row):
-
+    
     return haversine_distance(
             row.lat_start,
             row.lon_start,
@@ -68,29 +68,11 @@ def distance_from_observation_to_first_stop(row):
 def distance_from_observation_to_last_stop(row):
     pass
 
-def get_situation(row, first_stop, last_stop):
-    # 1545 to 792
-    if row.nextLocID == first_stop:
-        return 'approaching_first_stop'
-    elif row.nextLocID == last_stop:
-        return 'approaching_last_stop'
-    elif row.lastLocID == first_stop:
-        return 'leaving_first_stop'
-    elif row.lastLocID == last_stop:
-        return 'leaving_last_stop'
-    else:
-        return 'en_route'
 
-def main(df):
-    bus_line = 19
-    first_stop = 1545
-    last_stop = 792
+def main(df, save=True):
+    df['event_timestamp'] = df.event_timestamp.apply(get_datetime)
 
-    df = df[df['routeNumber'] == bus_line]
-    df['event_timestamp'] = df.time.apply(get_datetime)
-    df['situation'] = df.apply(get_situation, args=[first_stop, last_stop], axis=1)
-
-    df['weekday'] = df.event_timestamp.apply(get_weekday)
+    #df['weekday'] = df.event_timestamp.apply(get_weekday)
 
     # monday_trips = df[df.weekday == 'Monday']
 
@@ -98,9 +80,7 @@ def main(df):
 
 
     # Get only data points right after the bus leaves a stop (first or last stop)
-    leavings = df[df.situation.str.contains('leaving')]
-
-    import ipdb; ipdb.set_trace()
+    leavings = df[df.situation.str.contains('leavings')]
 
     # Work with a subset of columns
     # leavings_simple = leavings[['vehicle_id', 'event_timestamp', 'situation']]
@@ -117,7 +97,7 @@ def main(df):
 
     # all_routes_dataframes = []
     # all_blocks = set()
-    #
+    # 
     # # @TODO for later
     # for k, v in vehicles:
 
@@ -135,7 +115,7 @@ def main(df):
         vroutes['trip_end'] = vroutes.event_timestamp # Time leaving last stop
         vroutes['duration'] = vroutes.trip_end - vroutes.trip_start
 
-        vroutes['delay_start'] = previous_rows.delay
+        vroutes['delay_start'] = previous_rows.delay 
         vroutes['delay_end'] = vroutes.delay
 
         # Save the block ID for the start and end of each trip
@@ -145,7 +125,7 @@ def main(df):
         vroutes['block_end'] = vroutes.blockID.astype('str')
 
         # Calculte the distance between each start and and point
-        # This should help validate data as well
+        # This should help validate data as well 
         vroutes['lat_start'] = previous_rows.vehicle_location_latitude
         vroutes['lon_start'] = previous_rows.vehicle_location_longitude
         vroutes['lat_end'] = vroutes.vehicle_location_latitude
@@ -201,7 +181,7 @@ def main(df):
     # These are generally over 4 hours or event multiple days
     routes = routes[routes.duration < routes.duration.quantile(0.95)]
 
-    # Add new columns for grouping & aggregating
+    # Add new columns for grouping & aggregating 
     routes['weekday'] = routes.trip_start.apply(
             lambda t: t.strftime('%A'))
     routes['hour'] = routes.trip_start.apply(
@@ -215,7 +195,7 @@ def main(df):
             lambda t: t.seconds/60.0)
 
     # routes['duration_category'] = pd.cut(
-    #         routes.duration_minutes,
+    #         routes.duration_minutes, 
     #         bins=7,
     #         labels=['x_short', 'shorter', 'short', 'normal', 'long', 'longer', 'x-long'],
     #         include_lowest=True,)
@@ -242,10 +222,10 @@ def main(df):
 # import ipdb; ipdb.set_trace()
 
 # Final dataframe columns should look something like this:
-#
+# 
 # [
-#     time_leaving_first_stop,
-#     time_leaving_last_stop,
+#     time_leaving_first_stop, 
+#     time_leaving_last_stop, 
 #     length_of_trip, # Most important!
 #     weekday, # of trip start
 #     hour_of_day, # of trip start
@@ -271,4 +251,4 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     data = pd.read_json(args.path_to_bus_trip_json_data)
-    main(data)
+    main(data, save=True)
