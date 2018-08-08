@@ -26,6 +26,19 @@ def timestamp_to_dt(t, format=False):
     return dt
 
 
+def get_situation(row, first_stop, last_stop):
+    # 1545 to 792
+    if row.nextLocID == first_stop:
+        return 'approaching_first_stop'
+    elif row.nextLocID == last_stop:
+        return 'approaching_last_stop'
+    elif row.lastLocID == first_stop:
+        return 'leaving_first_stop'
+    elif row.lastLocID == last_stop:
+        return 'leaving_last_stop'
+    else:
+        return 'en_route'
+
 # Prep data
 data['timestamp'] = data['time'].apply(
                         timestamp_to_dt).apply(datetime.datetime.timestamp)
@@ -38,7 +51,7 @@ med_time = min_time + (max_time - min_time)/2
 
 def bus_route_choices():
     """Create a dict of choices for the bus route selection dropdown."""
-    routes = sorted([r for r in list(data['signMessageLong'].unique()) if r])
+    routes = sorted([r for r in list(data['signMessage'].unique()) if r])
     choices = [{'label': "{}".format(r), 'value': r} for r in routes]
     return choices
 
@@ -106,6 +119,9 @@ app.layout = html.Div([
         ),
 
         html.Div(id='selected-date'),
+
+        # @TODO add inputs for start and end stops to "highlight" or filter.
+
     ], style={'margin': '0 10%', 'textAlign': 'center'}),
 
 ])
@@ -127,10 +143,16 @@ def update_selected_date(slider_values):
 
 def query_data(bus_route, date_range):
     """Select subset of bus data."""
-    route_data = data[data['signMessageLong'] == bus_route]
+    route_data = data[data['signMessage'] == bus_route]
     after = route_data.timestamp > date_range[0]
     before = route_data.timestamp < date_range[1]
     route_data = route_data[after & before]
+
+    # @TODO Filter positions before and after chosen start & end stops.
+    # first_stop, last_stop = 1545, 792
+    # route_data['situation'] = route_data.apply(
+    #     get_situation, axis=1, args=[first_stop, last_stop])
+    # route_data = route_data[route_data['situation'].str.contains('approaching')]
     return route_data
 
 
@@ -183,6 +205,7 @@ def update_bus_positions(bus_route, date_range):
         route_data = query_data(bus_route, date_range)
 
         chart_data = []
+        # @TODO add trimet stops to map. At least start & stop ones.
         for vehicle, route in route_data.groupby('vehicleID'):
             start = route['time'].min()
             end = route['time'].max()
@@ -194,7 +217,7 @@ def update_bus_positions(bus_route, date_range):
                     'opacity': list(route['time'].apply(
                         get_position_index,
                         args=[start, end]) + 0.3),
-                    'size': 12,
+                    'size': 12,  # @TODO Mark "leavings" and "approaches"
                 },
                 'text': list(route.apply(hover_text, axis=1)),
                 'name': vehicle,
