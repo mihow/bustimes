@@ -26,9 +26,9 @@ def add_columns(df):
 
 def prep_data(df):
     df = remove_outliers(df)
-    df = remove_weekends(df)
+    # df = remove_weekends(df)
     df = add_columns(df)
-    return df 
+    return df
 
 def make_histogram(df, fname):
     ax = df.boxplot(column=['duration_minutes'], by='hour', figsize=(14, 6), rot=0, fontsize=15)

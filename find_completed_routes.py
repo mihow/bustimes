@@ -81,10 +81,12 @@ def get_situation(row, first_stop, last_stop):
     else:
         return 'en_route'
 
-def main(df):
+def main(df, save=True):
     bus_line = 19
     first_stop = 1545
     last_stop = 792
+    df['first_stop'] = first_stop
+    df['last_stop'] = last_stop
 
     df = df[df['routeNumber'] == bus_line]
     df['event_timestamp'] = df.time.apply(get_datetime)
@@ -100,7 +102,6 @@ def main(df):
     # Get only data points right after the bus leaves a stop (first or last stop)
     leavings = df[df.situation.str.contains('leaving')]
 
-    import ipdb; ipdb.set_trace()
 
     # Work with a subset of columns
     # leavings_simple = leavings[['vehicle_id', 'event_timestamp', 'situation']]
@@ -146,10 +147,10 @@ def main(df):
 
         # Calculte the distance between each start and and point
         # This should help validate data as well
-        vroutes['lat_start'] = previous_rows.vehicle_location_latitude
-        vroutes['lon_start'] = previous_rows.vehicle_location_longitude
-        vroutes['lat_end'] = vroutes.vehicle_location_latitude
-        vroutes['lon_end'] = vroutes.vehicle_location_longitude
+        vroutes['lat_start'] = previous_rows.latitude
+        vroutes['lon_start'] = previous_rows.longitude
+        vroutes['lat_end'] = vroutes.latitude
+        vroutes['lon_end'] = vroutes.longitude
         vroutes['distance'] = vroutes.apply(get_distance, axis=1)
 
         # Only keep the "ending" data points for each trip
@@ -168,7 +169,7 @@ def main(df):
                 'last_stop',
                 'block_start',
                 'block_end',
-                'vehicle_id',
+                'vehicleID',
                 'type',
                 'tripID',
                 'situation',
@@ -187,7 +188,8 @@ def main(df):
         return completed_routes
 
     # routes = pd.concat(all_routes_dataframes)
-    routes = leavings.groupby('vehicle_id', group_keys=False).apply(stats_for_vehicle_groups)
+    #  import ipdb; ipdb.set_trace()
+    routes = leavings.groupby('vehicleID', group_keys=False).apply(stats_for_vehicle_groups)
     # unstack()?
 
     # Drop rows with NA durations
@@ -229,6 +231,8 @@ def main(df):
     print(routes.duration.describe())
     # print()
     # print(routes.pivot_table(index=['weekday', 'hour'], values='duration', aggfunc='mean'))
+
+    # import ipdb; ipdb.set_trace()
 
     if save:
         route_number = routes.routeNumber.mode()[0] # Should be just one route number!!
