@@ -1,0 +1,88 @@
+    1  sudo yum update
+    2  ls
+    3  pip
+    4  ls
+    5  ls ~/.ssh/
+    6  ssh-keygen -t rsa -b 4096
+    7  cat ~/.ssh/id_rsa.pub 
+    8  ls
+    9  git clone git@github.com:mihow/bustimes.git
+   10  sudo yum install git
+   11  git clone git@github.com:mihow/bustimes.git
+   12  ls
+   13  cd bustimes/
+   14  ls
+   15  mkdir migration
+   16  cd migration/
+   17  ls
+   18  awscli
+   19  aws
+   20  aws s3 list
+   21  aws s3 ls
+   22  aws configure
+   23  aws s3 ls
+   24  aws s3 ls bustimes-data
+   25  aws s3 ls bustimes-data/raw --help
+   26  aws s3 ls help
+   27  aws s3 ls bustimes-data/raw --summarize
+   28  aws s3 ls bustimes-data/raw/ --summarize
+   29  aws s3 ls bustimes-data/ --summarize
+   30  aws s3 ls bustimes-data/ --summarize --human-readable
+   31  aws s3 ls bustimes-data/ --summarize/raw/ --human-readable > bustimes_list.tsv
+   32  aws s3 ls help
+   33  aws s3 ls bustimes-data/ --summarize/raw/ --human-readable --page-size=10
+   34  aws s3 ls bustimes-data/raw/ --summarize/ --human-readable --page-size=10
+   35  aws s3 ls bustimes-data/raw/ --summarize --human-readable --page-size=10
+   36  aws s3 ls help
+   37  aws s3 ls bustimes-data/raw/ --summarize --human-readable > bustimes_list.tsv
+   38  aws s3 ls bustimes-data/raw/ --summarize --human-readable | tee > bustimes_list.tsv
+   39  aws s3 ls bustimes-data/raw/ --summarize --human-readable | tee bustimes_list.tsv
+   40  ls
+   41  trail bustimes_list.tsv 
+   42  tail bustimes_list.tsv 
+   43  mv bustimes_list.tsv bustimes_list.txt
+   44  ls -lh
+   45  gzip bustimes_list.txt 
+   46  ls
+   47  ls -lh
+   48  git add bustimes_list.txt.gz 
+   49  git commit bustimes_list.txt.gz 
+   50  git config --global user.email "notbot@gmail.com"
+   51  git config --global user.email
+   52  git commit bustimes_list.txt.gz 
+   53  git push
+   54  ls
+   55  cd ..
+   56  ls
+   57  ./fetch_sample_from_s3.py 
+   58  python
+   59  sudo yum install python3
+   60  sudo yum install python36 python36-virtualenv python36-pip
+   61  python3
+   62  ./fetch_sample_from_s3.py 
+   63  pip3 install boto3
+   64  pip-3.6 install boto3
+   65  pip-3.6 install pip
+   66  pip-3.6 install pip --upgrade
+   67  sudo pip-3.6 install pip --upgrade
+   68  sudo pip-3.6 install boto3
+   69  pip
+   70  pip --version
+   71  pip
+   72  pip3
+   73  sudo pip3 install boto3
+   74  pip3 install boto3
+   75  pip3 install boto3 --user
+   76  ./fetch_sample_from_s3.py 
+   77  ls
+   78  cd data/
+   79  ls
+   80  cd ..
+   81  ls
+   82  cd migration/
+   83  ls
+   84  gunzip bustimes_list.txt.gz 
+   85  ls
+   86  tail bustimes_list.txt 
+   87  history
+   88  history > ec2history.txt
