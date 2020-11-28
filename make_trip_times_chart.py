@@ -26,15 +26,15 @@ def add_columns(df):
 
 def prep_data(df):
     df = remove_outliers(df)
-    # df = remove_weekends(df)
+    df = remove_weekends(df)
     df = add_columns(df)
     return df
 
 def make_histogram(df, fname):
     ax = df.boxplot(column=['duration_minutes'], by='hour', figsize=(14, 6), rot=0, fontsize=15)
     bus_num = df.routeNumber.mode()[0]
-    first_stop = df.first_stop.mode()[0]
-    last_stop = df.last_stop.mode()[0]
+    first_stop = 1545 # df.first_stop.mode()[0]
+    last_stop = 792 # df.last_stop.mode()[0]
     num_samples = len(df)
     first_date = df.trip_start.min().strftime('%D')
     last_date = df.trip_start.max().strftime('%D')
@@ -42,7 +42,7 @@ def make_histogram(df, fname):
     plt.suptitle('Average duration of weekday bus trips, grouped by hour of the day')
     plt.title('TriMet bus #{} from stop ID {} to {}. Generated from {} sample trips taken from {} to {}.'.format(
             bus_num, first_stop, last_stop, num_samples, first_date, last_date))
-    plt.ylabel('Minutes until bus arrives at stop ID {}'.format(first_stop))
+    plt.ylabel('Minutes until bus arrives at stop ID {}'.format(last_stop))
     plt.xlabel('Hour that bus leaves stop ID {} (24 clock)'.format(last_stop))
     plt.savefig(fname)
 

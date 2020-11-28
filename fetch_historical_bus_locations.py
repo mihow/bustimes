@@ -124,7 +124,7 @@ def exportcsv(begin, end, filters = {"logical": "and", "conditions": []}):
 		  })
     date = timestamp()
     hmac_sig = authenticate("POST", content, 'application/json; charset=UTF-8', date, "/v1/datasource/" + datasource_id + "/analyze")
-    url = 'https://beta.db4iot.net/v1/datasource/' + datasource_id + '/analyze?X-D4i-Date=' + urllib.parse.quote(date) + '&X-D4i-APIKey=' + api_key + '&X-D4i-Signature=' + hmac_sig
+    url = 'https://api.db4iot.com/v1/datasource/' + datasource_id + '/analyze?X-D4i-Date=' + urllib.parse.quote(date) + '&X-D4i-APIKey=' + api_key + '&X-D4i-Signature=' + hmac_sig
     header = {'content-type': 'application/json; charset=UTF-8', 'data-type':'text'}
 
     response = requests.post(url, data=content.encode('utf-8'), headers=header)
