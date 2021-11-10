@@ -48,7 +48,7 @@ def make_summary(bus_data={}, save=True):
 
     def timestamp_to_dt(t):
         # Convert "miliseconds since the epoch" to a datetime object
-        return datetime.datetime.fromtimestamp(t/1000)
+        return datetime.datetime.utcfromtimestamp(t/1000)
 
     summary = {
             "num_vehicles_reporting": len(buses),
@@ -85,7 +85,7 @@ def show_bus_data():
 def save_to_s3(bus_data):
 
     filename = 'raw/bustimes__{:%Y-%m-%d__%H-%M-%S}.json'.format(
-        datetime.datetime.now())
+        datetime.datetime.utcnow())
 
     print("Saving file '{}' to S3 bucket '{}'".format(
         filename, S3_BUCKET_NAME))
