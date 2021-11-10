@@ -31,7 +31,7 @@ def get_bus_data():
     return bus_info
 
 def make_summary(bus_data={}, save=True):
-    request_time = datetime.datetime.now()
+    request_time = datetime.datetime.utcnow()
 
     if not bus_data:
         bus_data = get_bus_data()
@@ -154,7 +154,7 @@ def save_bus_data(*args, **kwargs):
     """
     This is a scheduled function, doesn't need an http endpoint
     """
-    bus_data = kwargs.get('bus_data', get_bus_data())
+    bus_data = json.dumps(kwargs.get('bus_data', get_bus_data()))
 
     url, resp = save_to_s3(bus_data)
     # save_to_db(bus_data)
