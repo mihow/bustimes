@@ -1,2 +1,3 @@
 zappa==0.31
 flask==0.11
+pip<10
