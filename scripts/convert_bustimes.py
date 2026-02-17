@@ -24,6 +24,7 @@ import json
 import os
 import re
 import sys
+import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -238,8 +239,9 @@ def convert_week(
     # Sort by key to maintain chronological order
     file_data.sort(key=lambda x: x[0])
 
-    # Parse and write JSONL
-    with gzip.open(output_path, "wt", encoding="utf-8") as gz:
+    # Parse and write JSONL (atomic: write to .tmp, rename on completion)
+    temp_path = output_path + ".tmp"
+    with gzip.open(temp_path, "wt", encoding="utf-8", compresslevel=6) as gz:
         for key, raw in file_data:
             dt = parse_filename_dt(key)
             assert dt is not None, f"could not parse datetime from {key}"
@@ -256,6 +258,8 @@ def convert_week(
                 record["snapshot_time"] = snapshot_time
                 gz.write(json.dumps(record, separators=(",", ":")) + "\n")
                 stats["records"] += 1
+
+    os.rename(temp_path, output_path)
 
     if validate:
         # Re-read and verify each line is valid JSON
@@ -314,6 +318,10 @@ def main():
         help="Thread pool size for downloads (default: 16)",
     )
     parser.add_argument(
+        "--max-errors", type=int, default=100,
+        help="Abort after this many errors (default: 100, 0=unlimited)",
+    )
+    parser.add_argument(
         "--profile",
         help="AWS profile name for SSO/IAM auth (default: anonymous access)",
     )
@@ -367,7 +375,9 @@ def main():
     os.makedirs(args.output_dir, exist_ok=True)
 
     # Convert each week
-    total_stats = {"files": 0, "records": 0, "errors": 0, "skipped": 0}
+    total_stats = {"files": 0, "records": 0, "errors": 0, "skipped": 0, "elapsed": 0.0}
+    weeks_processed = 0
+    weeks_total = len(weeks)
     for week, keys in weeks.items():
         output_path = os.path.join(args.output_dir, f"{week}.jsonl.gz")
         if os.path.exists(output_path):
@@ -376,15 +386,30 @@ def main():
             continue
 
         print(f"  {week}: converting {len(keys)} files...", end=" ", flush=True)
+        t0 = time.monotonic()
         stats = convert_week(week, keys, read_fn, args.output_dir, args.workers, args.validate)
-        print(f"{stats['records']} records, {stats['errors']} errors")
+        elapsed = time.monotonic() - t0
+        print(f"{stats['records']} records, {stats['errors']} errors, {elapsed:.0f}s")
 
         total_stats["files"] += stats["files"]
         total_stats["records"] += stats["records"]
         total_stats["errors"] += stats["errors"]
+        total_stats["elapsed"] += elapsed
+        weeks_processed += 1
+
+        weeks_left = weeks_total - total_stats["skipped"] - weeks_processed
+        avg = total_stats["elapsed"] / weeks_processed
+        eta = weeks_left * avg
+        print(f"    avg {avg:.0f}s/week, ~{weeks_left} left, ETA {eta/3600:.1f}h", flush=True)
+
+        if args.max_errors and total_stats["errors"] >= args.max_errors:
+            print(f"\nABORTING: {total_stats['errors']} errors reached --max-errors {args.max_errors}",
+                  file=sys.stderr)
+            sys.exit(1)
 
     print(f"\nDone: {total_stats['files']} files → {total_stats['records']} records, "
-          f"{total_stats['errors']} errors, {total_stats['skipped']} skipped")
+          f"{total_stats['errors']} errors, {total_stats['skipped']} skipped, "
+          f"{total_stats['elapsed']:.0f}s elapsed")
 
 
 if __name__ == "__main__":

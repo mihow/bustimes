@@ -2,106 +2,195 @@
 
 ## Context
 
-TriMet bus position data in `s3://bustimes-data/raw/` (us-east-1): 4.84M files, 909 GB, ~$21/month storage. We're compressing + fixing format + combining into weekly JSONL.gz files under `v2/`.
+TriMet bus position data in `s3://bustimes-data` (us-east-1, account `144370233886`): 4.84M files, 909 GB, ~$21/month storage. Compressing + fixing format + combining into weekly JSONL.gz files under `v2/`.
 
 ## What's done (steps 1-2)
 
 `scripts/convert_bustimes.py` is complete and validated. It:
-- Lists S3 objects by week (parallel per-date listing)
+- Lists S3 objects by week (parallel per-date listing, 16 threads)
 - Downloads with thread pool (`--workers N`, default 16)
 - Parses Python repr (pre-2021-11-10) via `ast.literal_eval()` or JSON (post-2021-11-10) via `json.loads()`
 - Adds `snapshot_time` ISO 8601 field from filename timestamp
-- Writes one `{YYYY}-W{WW}.jsonl.gz` per ISO week
+- Writes one `{YYYY}-W{WW}.jsonl.gz` per ISO week (atomic: writes to `.tmp`, renames on completion)
+- Gzip level 6 (fast, nearly same compression as level 9)
 - Resumes by skipping weeks with existing output files
-- Has `--dry-run`, `--validate`, `--profile` (for SSO auth), `--local-dir` (for local testing)
+- `--max-errors N` (default 100) aborts if too many errors
+- Per-week timing and running ETA printed during conversion
+- Has `--dry-run`, `--validate`, `--profile`, `--local-dir`
 
-Tested on stratified sample (one week from each year 2017-2025 plus the format transition week 2021-W45): **90,740 files, 25M records, 0 errors.** Avg 180 MB compressed per week. Extrapolated full run: ~480 weeks, ~85 GB total (91% reduction).
+Tested on 9 stratified sample weeks (2017-2025 plus format transition week): **90,740 files, 25M records, 0 errors.** Avg 180 MB compressed per week. Full run: ~481 weeks, ~85 GB total (91% reduction).
+
+## AWS details
+
+| Item | Value |
+|------|-------|
+| Bucket | `bustimes-data` |
+| Region | **us-east-1** |
+| Account | `144370233886` |
+| CLI | `aws2 --profile michael` |
+| Bucket access | Public READ ACL. `michael` profile has write. `mixedneeds` profile is read-only. |
+| Storage | STANDARD, no versioning, no lifecycle |
 
 ## What needs doing (step 3)
 
-### 1. Add `--s3-output` to the script
+### 1. Create IAM instance role
 
-The script currently writes `.jsonl.gz` to a local `--output-dir`. For the EC2 batch run, add a `--s3-output` flag that uploads each completed weekly file to S3 and deletes the local temp copy. This avoids filling the instance disk (a `t3.medium` only has 8 GB root volume).
-
-Key changes to `scripts/convert_bustimes.py`:
-- Add `--s3-output` arg (e.g. `s3://bustimes-data/v2/`)
-- After `convert_week()` writes the local `.jsonl.gz`, upload it with `s3_client.upload_file()`
-- Delete the local file after successful upload
-- For resume: check if the S3 key already exists (HEAD object) before processing a week
-
-**Important**: when `--s3-output` is used, the script needs an authenticated S3 client (not the anonymous one). On the EC2 instance the default boto3 session will use the instance IAM role automatically, so no `--profile` needed. But make sure the `make_s3_client()` path works without a profile AND without UNSIGNED config — just a plain `boto3.client("s3")`.
+In account `144370233886`:
+- Role name: e.g. `bustimes-conversion`
+- Trust: EC2 service
+- Policies:
+  - `AmazonSSMManagedInstanceCore` (for remote command execution)
+  - Custom inline policy for S3:
+    ```json
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": ["s3:GetObject", "s3:ListBucket"],
+          "Resource": ["arn:aws:s3:::bustimes-data", "arn:aws:s3:::bustimes-data/*"]
+        },
+        {
+          "Effect": "Allow",
+          "Action": "s3:PutObject",
+          "Resource": "arn:aws:s3:::bustimes-data/v2/*"
+        }
+      ]
+    }
+    ```
+- Create instance profile, attach role
 
 ### 2. Launch EC2 spot instance
 
-- **Instance type**: `t3.medium` (2 vCPU, 4 GB RAM) in **us-east-1** (same region as bucket — S3 transfer is free within region)
-- **AMI**: Amazon Linux 2023 (has Python 3.9+ and pip pre-installed)
-- **IAM role**: needs `s3:GetObject`, `s3:ListBucket` on `arn:aws:s3:::bustimes-data` and `arn:aws:s3:::bustimes-data/*`, plus `s3:PutObject` on `arn:aws:s3:::bustimes-data/v2/*`
-- **Spot price**: ~$0.01/hr, set max at $0.02/hr
-- **Security group**: SSH only (port 22 from your IP)
-- **Key pair**: use existing or create new
-- **User data** or manual setup after SSH:
-  ```bash
-  sudo yum install -y python3-pip tmux
-  pip3 install --user boto3
-  ```
+- **Region**: us-east-1 (same as bucket, zero data transfer cost)
+- **AMI**: Amazon Linux 2023
+- **Instance type**: Start with t3.medium (~$0.01/hr spot). Bump to c5.xlarge/2xlarge after smoke test if CPU-bound.
+- **EBS**: 20 GB gp3 (sync + cleanup keeps disk usage low)
+- **IAM instance profile**: `bustimes-conversion`
+- **No SSH needed** — use SSM for remote commands
 
-### 3. Run the conversion
+### 3. Set up instance (via SSM send-command)
 
 ```bash
-# SCP the script to the instance
-scp -i key.pem scripts/convert_bustimes.py ec2-user@<ip>:~/
+# Send commands from local machine:
+aws2 --profile michael ssm send-command \
+  --instance-ids $INSTANCE_ID --document-name "AWS-RunShellScript" \
+  --parameters 'commands=["..."]' --region us-east-1
 
-# SSH in, run in tmux
-ssh -i key.pem ec2-user@<ip>
-tmux new -s convert
-python3 convert_bustimes.py --all --workers 32 --s3-output s3://bustimes-data/v2/
-# Ctrl-B D to detach, reconnect with: tmux attach -t convert
+# Get output:
+aws2 --profile michael ssm get-command-invocation \
+  --command-id $CMD_ID --instance-id $INSTANCE_ID --region us-east-1
 ```
 
-- The `--all` flag first lists ALL 4.8M keys (slow, ~10-20 min for pagination), then processes week by week
-- Expected: ~480 weeks, 4-6 hours total
-- Cost: ~$0.05 compute + ~$4 S3 GET requests (~4.8M × $0.0004/1K) + $0 data transfer (same region)
-- If spot is reclaimed, re-SSH and re-run — it resumes from the last incomplete week
+Setup commands to send:
+```bash
+sudo dnf install -y python3-pip tmux
+pip3 install --user boto3
 
-### 4. Verify after completion
+# Install s5cmd
+curl -sL https://github.com/peak/s5cmd/releases/latest/download/s5cmd_2.2.2_Linux-64bit.tar.gz | sudo tar xz -C /usr/local/bin
+
+# Verify
+python3 -c "import boto3; print('boto3 OK')"
+s5cmd ls s3://bustimes-data/raw/bustimes__2025-02-10* | head -3
+```
+
+### 4. Smoke test (one week)
 
 ```bash
-# Count output files (should be ~480)
-aws s3 ls s3://bustimes-data/v2/ | wc -l
+# Copy script to instance (via SSM heredoc or s5cmd from a temp location)
 
-# Check total size
-aws s3 ls s3://bustimes-data/v2/ --summarize --human-readable | tail -2
+# Run one week
+python3 convert_bustimes.py --weeks 2017-W01 --output-dir /home/ec2-user/v2/ --validate
 
-# Spot-check a few files
-aws s3 cp s3://bustimes-data/v2/2018-W01.jsonl.gz - | zcat | head -1 | python3 -m json.tool
-aws s3 cp s3://bustimes-data/v2/2023-W01.jsonl.gz - | zcat | wc -l  # should be ~250K-300K records
+# Check:
+# - Timing (how many seconds?)
+# - Output file size (~170 MB expected)
+# - Valid gzip: zcat v2/2017-W01.jsonl.gz | head -1 | python3 -m json.tool
+# - snapshot_time present
+# - Test sync: s5cmd sync /home/ec2-user/v2/ s3://bustimes-data/v2/
+# - Verify in S3: s5cmd ls s3://bustimes-data/v2/
+# - Test resume: re-run, should print SKIP
+# - Check memory: free -m
 ```
 
-### 5. Clean up
+Use the per-week time to estimate full run. Decide whether to bump instance type.
+
+### 5. Full conversion run
+
+Generate all 481 week labels and run:
+```bash
+WEEKS=$(python3 -c "
+import datetime
+d, weeks = datetime.date(2016,12,5), set()
+while d <= datetime.date.today():
+    iso = d.isocalendar()
+    weeks.add(f'{iso[0]}-W{iso[1]:02d}')
+    d += datetime.timedelta(days=7)
+print(','.join(sorted(weeks)))
+")
+
+# Run in tmux (or nohup with log file for SSM)
+nohup python3 convert_bustimes.py --weeks $WEEKS --output-dir /home/ec2-user/v2/ \
+  > /home/ec2-user/convert.log 2>&1 &
+```
+
+Sync + cleanup loop (separate background process):
+```bash
+nohup bash -c 'while true; do
+  s5cmd sync /home/ec2-user/v2/ s3://bustimes-data/v2/
+  find /home/ec2-user/v2/ -name "*.jsonl.gz" -mmin +10 -delete
+  sleep 300
+done' > /home/ec2-user/sync.log 2>&1 &
+```
+
+Monitor via SSM:
+```bash
+tail -20 /home/ec2-user/convert.log   # conversion progress + ETA
+tail -5 /home/ec2-user/sync.log       # sync status
+ls /home/ec2-user/v2/ | wc -l         # local files pending sync
+s5cmd ls s3://bustimes-data/v2/ | wc -l  # files uploaded to S3
+df -h                                  # disk usage
+free -m                                # memory
+```
+
+### 6. Post-completion verification
+
+```bash
+# Count output files (expect ~481, some weeks may have no data)
+s5cmd ls s3://bustimes-data/v2/ | wc -l
+
+# Total size (expect ~85 GB)
+s5cmd ls s3://bustimes-data/v2/ | awk '{sum+=$1} END {printf "%.1f GB\n", sum/1024/1024/1024}'
+
+# Spot-check random weeks
+s5cmd cat s3://bustimes-data/v2/2018-W01.jsonl.gz | zcat | head -1 | python3 -m json.tool
+s5cmd cat s3://bustimes-data/v2/2023-W01.jsonl.gz | zcat | wc -l
+
+# Verify first and last weeks match expected range
+s5cmd ls s3://bustimes-data/v2/ | head -1   # expect 2016-W49
+s5cmd ls s3://bustimes-data/v2/ | tail -1   # expect current week
+```
+
+### 7. Clean up
 
 - Terminate the spot instance
 - Delete the IAM role/instance profile
-- Delete the security group
 - **Do NOT delete raw/ yet** — that's step 5 (after Athena validation)
 
-## Pitfalls to avoid
+## Pitfalls
 
-- **Do NOT run `--all` from the local machine** — it downloads ~900 GB from S3 over the internet. That's ~$80 in data transfer and would take days. Must run from EC2 in us-east-1.
-- **Do NOT use `--profile` on the EC2 instance** — it doesn't have SSO configured. The IAM instance role provides credentials automatically via the default boto3 credential chain.
-- **The `--all` listing is slow** — listing 4.8M objects via `list_objects_v2` pagination takes 10-20 minutes. Don't think it's stuck. The script prints progress every 100K keys.
-- **Memory**: each week downloads ~10K files into memory before writing. At ~200 KB per file, that's ~2 GB per week. A `t3.medium` with 4 GB RAM should handle this, but don't increase `--workers` above 32 or you may OOM.
-- **Root-level files**: there may be `bustimes__*.json` files at the bucket root (no `raw/` prefix) from Dec 2016. The script already handles these — `list_s3_keys_all()` scans both `raw/` and `bustimes__` prefixes.
-- **The `is_malformed()` check uses string comparison**: `key <= "raw/bustimes__2021-11-10__07-15-05.json"`. Root-level keys like `bustimes__2016-*` are always less than `raw/*` (since 'b' < 'r'), so they correctly get the `ast.literal_eval()` path.
+- **Do NOT run from local machine** — downloading ~900 GB over internet costs ~$80 in data transfer
+- **Do NOT use `--profile` on EC2** — instance role provides credentials automatically
+- **Do NOT use `--all`** — slow full-bucket listing. Use `--weeks` with all labels
+- **SSM output truncation** — SSM caps output at 24K chars. Use `nohup` + log files, read via `tail`
+- **Memory** — each week loads ~10K files (~2 GB) into memory. t3.medium (4 GB) is tight. If OOM, use t3.large (8 GB, ~$0.02/hr spot)
+- **`is_malformed()` for root keys** — root keys `bustimes__*` < `raw/bustimes__*` alphabetically, so they correctly get `ast.literal_eval()`. Verified in sample test.
 
 ## Key files
 
-| File | What it does |
+| File | Purpose |
 |---|---|
-| `scripts/convert_bustimes.py` | All conversion logic — listing, downloading, parsing, writing, resume |
-| `PLAN.md` | Full plan with step 2 validation results table |
-| `CLAUDE.md` | Project overview for AI agents |
-
-## Later steps (not this session)
-
-- **Step 4**: New Lambda writing gzipped JSONL to `v2/` (existing Lambda stays untouched)
-- **Step 5**: Create Athena table over `v2/`, validate queries match raw data, then delete `raw/` originals
+| `scripts/convert_bustimes.py` | Conversion script |
+| `PLAN.md` | Full plan with validation results and cost estimates |
+| `CLAUDE.md` | Project overview + AWS details |
